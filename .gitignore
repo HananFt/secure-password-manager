@@ -1,0 +1,13 @@
+# Python virtual environment — never upload this
+venv/
+
+# The vault file — contains YOUR encrypted passwords, keep it local
+vault.json
+
+# Python cache files — auto-generated, not needed on GitHub
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code settings
+.vscode/
