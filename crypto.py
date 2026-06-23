@@ -6,27 +6,55 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 def derive_key(password: str, salt: bytes) -> bytes:
     """
-        Turns a master password + salt into a 32-byte (256-bit) AES key.
-        - password: what the user types
-        - salt: random bytes stored in the vault (not secret, but must be unique)
-        - 600,000 iterations: makes brute-forcing take ~minutes per guess instead of microseconds
+    Turns a master password + salt into a 32-byte (256-bit) AES key.
+    - password: what the user types
+    - salt: random bytes stored in the vault (not secret, but must be unique)
+    - 600,000 iterations: makes brute-forcing take ~minutes per guess instead of microseconds
     """
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
-        length=32,                   # 32 bytes = 256 bits
+        length=32,
         salt=salt,
-        iterations=600_000,          # NIST recommended minimum as of 2023
+        iterations=600_000,
     )
-    return kdf.derive(password.encode())   # .encode() converts string -> bytes
+    return kdf.derive(password.encode())
+
+def generate_vault_key() -> bytes:
+    """Generate a random 32-byte vault key. This key encrypts all entries."""
+    return os.urandom(32)
+
+def wrap_key(wrapping_key: bytes, vault_key: bytes) -> dict:
+    """
+    Encrypt the vault key with a wrapping key (derived from master password
+    or a recovery code). Returns a dict with nonce + ciphertext.
+    This is the KEY WRAP operation — same AES-GCM, just encrypting raw bytes.
+    """
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(wrapping_key)
+    ciphertext = aesgcm.encrypt(nonce, vault_key, None)
+    return {
+        "nonce": base64.b64encode(nonce).decode(),
+        "ciphertext": base64.b64encode(ciphertext).decode()
+    }
+
+def unwrap_key(wrapping_key: bytes, wrapped: dict) -> bytes:
+    """
+    Decrypt the vault key using the wrapping key.
+    Raises an exception if the wrapping key is wrong or data is tampered.
+    """
+    nonce = base64.b64decode(wrapped["nonce"])
+    ciphertext = base64.b64decode(wrapped["ciphertext"])
+    aesgcm = AESGCM(wrapping_key)
+    return aesgcm.decrypt(nonce, ciphertext, None)
 
 def encrypt(key: bytes, plaintext: str) -> dict:
     """
-        Encrypts a string using AES-256-GCM.
-        Returns a dict with the nonce + ciphertext (both base64-encoded for JSON storage).
-        - nonce: a random 12-byte number used ONCE per encryption. Never reuse a nonce!
-        - GCM mode produces a 'tag' appended to ciphertext that detects any tampering
+    Encrypts a string using AES-256-GCM.
+    Returns a dict with the nonce + ciphertext (both base64-encoded for JSON storage).
+    - nonce: a random 12-byte number used ONCE per encryption. Never reuse a nonce!
+    - GCM mode produces a 'tag' appended to ciphertext that detects any tampering
     """
-    nonce = os.urandom(12)   # 12 bytes is the standard nonce size for GCM
+    nonce = os.urandom(12)
     aesgcm = AESGCM(key)
     ciphertext = aesgcm.encrypt(nonce, plaintext.encode(), None)
     return {
@@ -36,8 +64,8 @@ def encrypt(key: bytes, plaintext: str) -> dict:
 
 def decrypt(key: bytes, encrypted: dict) -> str:
     """
-        Reverses encrypt(). Takes the same dict and returns the original string.
-        Raises an exception if the key is wrong OR if the data was tampered with.
+    Reverses encrypt(). Takes the same dict and returns the original string.
+    Raises an exception if the key is wrong OR if the data was tampered with.
     """
     nonce = base64.b64decode(encrypted["nonce"])
     ciphertext = base64.b64decode(encrypted["ciphertext"])

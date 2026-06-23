@@ -1,14 +1,14 @@
 import os
 import base64
-import getpass # like input() but hides what you type (for passwords)
-from crypto import derive_key, encrypt, decrypt
+import getpass
+from crypto import derive_key, generate_vault_key, wrap_key, unwrap_key, encrypt, decrypt
 from vault import vault_exists, load_vault, save_vault, init_vault
 
 def unlock() -> tuple[bytes, dict]:
     """
-        Called at the start of every session.
-        Either initializes a new vault or unlocks an existing one.
-        Returns (key, vault_data) so the rest of the program can use them.
+    Either initializes a new vault or unlocks an existing one.
+    Returns (vault_key, vault_data). The vault_key encrypts entries directly;
+    it is itself stored encrypted under the master password's derived key.
     """
     if not vault_exists():
         print("No vault found. Creating a new one.\n")
@@ -17,34 +17,38 @@ def unlock() -> tuple[bytes, dict]:
         if master != confirm:
             print("Passwords don't match. Exiting.")
             exit()
-        salt = os.urandom(16)   # random 16 bytes, unique to your vault
+        salt = os.urandom(16)
         salt_b64 = base64.b64encode(salt).decode()
-        init_vault(salt_b64)
-        key = derive_key(master, salt)
+        master_key = derive_key(master, salt)
+        vault_key = generate_vault_key()
+        wrapped = wrap_key(master_key, vault_key)
+        init_vault(salt_b64, wrapped)
         print("\n✅ Vault created successfully!\n")
-        return key, load_vault()
+        return vault_key, load_vault()
     else:
         master = getpass.getpass("Master password: ")
         vault = load_vault()
         salt = base64.b64decode(vault["salt"])
-        key = derive_key(master, salt)
-        return key, vault
-    
+        master_key = derive_key(master, salt)
+        try:
+            vault_key = unwrap_key(master_key, vault["vault_key"])
+        except Exception:
+            print("❌ Wrong password.")
+            exit()
+        return vault_key, vault
+
 def add_entry(key: bytes, vault: dict):
-    """Add a new password entry to the vault."""
     service = input("Service name (ex: gmail, github): ").strip()
     username = input("Username/email: ").strip()
     password = getpass.getpass("Password: ")
-    encrypted_password = encrypt(key, password)
     vault["entries"][service] = {
         "username": username,
-        "password": encrypted_password   # stored as {"nonce": "...", "ciphertext": "..."}
+        "password": encrypt(key, password)
     }
     save_vault(vault)
     print(f"\n✅ Entry for '{service}' saved.\n")
 
 def get_entry(key: bytes, vault: dict):
-    """Retrieve and decrypt a password entry."""
     service = input("Service name to retrieve: ").strip()
     if service not in vault["entries"]:
         print(f"\n❌ No entry found for '{service}'.\n")
@@ -56,11 +60,9 @@ def get_entry(key: bytes, vault: dict):
         print(f"  Username : {entry['username']}")
         print(f"  Password : {password}\n")
     except Exception:
-        # AES-GCM throws an error if the key is wrong or data is tampered 
-        print("\n❌ Decryption failed. Wrong master password or currupted data.\n")
+        print("\n❌ Decryption failed. Corrupted data.\n")
 
 def list_entries(vault: dict):
-    """List all service names in the vault (no passwords shown)."""
     entries = vault["entries"]
     if not entries:
         print("\n Vault is empty.\n")
@@ -71,7 +73,6 @@ def list_entries(vault: dict):
     print()
 
 def delete_entry(vault: dict):
-    """Remove an entry from the vault."""
     service = input("Service name to delete: ").strip()
     if service not in vault["entries"]:
         print(f"\n❌ No entry for '{service}'.\n")

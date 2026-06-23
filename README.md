@@ -1,74 +1,139 @@
-# 🔐 Secure Password Manager
+# 🔐 VaultX - Secure Password Manager
 
-A command-line password vault built in Python. Passwords are encrypted with
-AES-256-GCM and the master password is never stored — only a derived key via PBKDF2.
+A modern, encrypted password vault with both GUI and CLI interfaces.
+Passwords are protected with AES-256-GCM and the master password is
+never stored — only a derived key via PBKDF2.
+
+---
 
 ## Features
 
-- AES-256-GCM encryption for all stored passwords
-- PBKDF2 key derivation (600,000 iterations) — brute-force resistant
-- Random salt per vault + random nonce per entry
-- Master password never stored anywhere
-- Tamper detection via GCM authentication tag
-- Clean CLI interface with secure password input
+- 🔒 **Military-grade encryption** — AES-256-GCM with unique nonces per entry
+- 🔑 **Strong key derivation** — PBKDF2 with 600,000 iterations (NIST recommended)
+- 🛡️ **Tamper detection** — GCM authentication tags prevent undetected modification
+- 🎨 **Modern GUI** — Dark-themed interface built with CustomTkinter
+- 📋 **Clipboard integration** — One-click password copying
+- 🔄 **Password re-encryption** — Seamless master password changes
+- ⏱️ **Auto-lock** — Vault locks after user-defined inactivity
+- 🔑 **Password generator** — Generate strong, random passwords
+- 📊 **Password strength meter** — Real-time feedback on password quality
+- 🔐 **Recovery codes** — 10 one-time use codes for account recovery
+- 📦 **Zero-trust architecture** — Master password never stored or transmitted
+- 🖥️ **CLI & GUI** — Same security model, two interfaces
 
-## How It Works
-Master Password + Salt
+---
 
+## Security Model
+
+```
+Master Password + Unique Salt
 │
 ▼
-
-PBKDF2-SHA256 (600k iterations)
-
+PBKDF2-SHA256
+(600,000 iterations)
 │
 ▼
+256-bit AES Key ──► AES-256-GCM ──► vault.json
+│
+▼
+Per-entry random nonce + Authentication tag
+```
 
-256-bit AES Key  ──►  AES-256-GCM  ──►  vault.json
+---
 
-## Setup
+## Quick Start
+
+### Installation
 
 ```bash
-# Clone the repo
+# Clone the repository
 git clone https://github.com/HananFt/secure-password-manager.git
 cd secure-password-manager
 
 # Create virtual environment
 python -m venv venv
-venv\Scripts\activate       # Windows
-source venv/bin/activate    # macOS/Linux
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependency
-pip install cryptography
+# Install dependencies
+pip install cryptography customtkinter pyperclip
 ```
 
-## Usage
+### Usage
 
+**GUI (Recommended)**
+```bash
+python app.py
+```
+
+**CLI (Terminal)**
 ```bash
 python manager.py
 ```
 
-On first run, you'll set a master password and a vault is created locally.
+### First-Time Setup
 
-| Option | Action |
-|--------|--------|
-| 1 | Add a password entry |
-| 2 | Retrieve & decrypt a password |
-| 3 | List all saved services |
-| 4 | Delete an entry |
-| 5 | Quit |
+On first run, you'll be prompted to:
+
+1. Create a master password (minimum 8 characters)
+2. Receive 10 recovery codes — store them securely!
+3. A `vault.json` file is created locally
+4. Add your first password entry
+
+---
+
+## Project Structure
+
+```
+secure-password-manager/
+├── app.py           # GUI application (CustomTkinter)
+├── manager.py       # CLI interface
+├── crypto.py        # Core encryption logic
+├── vault.py         # Vault storage operations
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Technical Stack
+
+| Component | Technology |
+|-----------|------------|
+| Language | Python 3.12+ |
+| Encryption | AES-256-GCM, PBKDF2-HMAC-SHA256 |
+| GUI | CustomTkinter |
+| Platform | Cross-platform (Windows, macOS, Linux) |
+
+---
+
+## Feature Status
+
+| Feature | Status | Location |
+|---------|--------|----------|
+| Auto-lock Timer | ✅ Implemented | Settings → Auto-lock Timer (configurable) |
+| Password Generator | ✅ Implemented | Settings → Password Generator & Add Entry dialog |
+| Password Strength Meter | ✅ Implemented | Login, Add Entry, Settings |
+| Recovery Codes | ✅ Implemented | Created on vault creation, viewable in Settings |
+
+---
 
 ## Security Notes
 
-- `vault.json` is **never committed** to this repo (see `.gitignore`)
-- Each password entry uses a **unique random nonce** — no two encryptions are alike
-- The salt ensures two users with the same master password get different keys
+- The vault salt is stored in plaintext (non-secret by design)
+- Each password entry uses a unique 12-byte random nonce
+- GCM authentication prevents tampering — modified vaults fail decryption
+- Master password is never written to disk or logged
+- Clipboard contents are cleared after 30 seconds
+- Recovery codes are encrypted with the master password
 
-## Tech Stack
-
-- Python 3.12+
-- [`cryptography`](https://cryptography.io) library
-- AES-256-GCM, PBKDF2-HMAC-SHA256
+---
 
 ## License
 
 MIT
+
+---
+
+## Author
+
+**HananFt** — [GitHub](https://github.com/HananFt)
